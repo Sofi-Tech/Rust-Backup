@@ -1,0 +1,9 @@
+{
+  "editor.formatOnSave": true,
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "rust-analyzer.checkOnSave.enable": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "cSpell.words": ["asyncpool", "bson", "DECR", "reqwest", "SOFI"]
+}
