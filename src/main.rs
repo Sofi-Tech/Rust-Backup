@@ -12,8 +12,8 @@ use webhook::client::WebhookClient;
 #[tokio::main]
 async fn main() {
     let instant = Instant::now();
-    let database_name = "Sofi-Test";
-    let destination_dir = "test/";
+    let database_name = "Sofi";
+    let destination_dir = "rustBackup/";
     let filename = generate_filename();
 
     let url = match env::var("BACKUP_WEBHOOK_URL") {
@@ -41,7 +41,11 @@ async fn main() {
     /****************
      * Remove all the old mongo dump files
      ****************/
-    send_webhook_message(&client, "Cron job started, Removing all the files.").await;
+    send_webhook_message(
+        &client,
+        "Cron job started, Removing all the old dump files.",
+    )
+    .await;
     println!("{}: Cron job started.", get_time_str());
     let output = Command::new("sh")
         .arg("-c")
@@ -50,14 +54,14 @@ async fn main() {
         .expect("failed to execute process");
     let files_cmd = command_success(
         &output,
-        format!("{}: Removing all the files.", get_time_str()).as_str(),
+        format!("{}: Removing all the old dump files.", get_time_str()).as_str(),
     );
     if !files_cmd {
-        send_webhook_message(&client, "Error removing all the files.").await;
-        println!("{}: Error removing all the files.", get_time_str());
+        send_webhook_message(&client, "Error removing all the old dump files.").await;
+        println!("{}: Error removing all the old dump files.", get_time_str());
     } else {
-        send_webhook_message(&client, "All the files removed.").await;
-        println!("{}: All the files removed.", get_time_str());
+        send_webhook_message(&client, "All the old dump files removed.").await;
+        println!("{}: All the old dump files removed.", get_time_str());
     }
 
     /****************
@@ -68,12 +72,16 @@ async fn main() {
         .arg(format!("--uri={}", mongodb_uri))
         .arg(format!("-d={}", database_name))
         .arg("-o=/home/backup/")
+        .arg("--gzip")
+        .arg("--numParallelCollections=10")
         .output()
         .expect("failed to execute process");
+
     let dump_cmd = command_success(
         &output,
         format!("{}: Dumping the mongo database.", get_time_str()).as_str(),
     );
+
     if !dump_cmd {
         send_webhook_message(&client, "Error dumping the mongo database.").await;
         println!("{}: Error dumping the mongo database.", get_time_str());
@@ -94,7 +102,7 @@ async fn main() {
     remove_id_index(database_name).await.unwrap();
 
     /****************
-     * Zip the mongo dump files
+     * Calculate the size of the directory
      ****************/
     let dir_size = dir_size(format!("/home/backup/{}", database_name).as_str())
         .await
@@ -102,30 +110,9 @@ async fn main() {
 
     send_webhook_message(
         &client,
-        format!("Zipping the mongo dump files. Directory size: {}", dir_size).as_str(),
+        format!("Native MONGODB compressed (gz) size: {}", dir_size).as_str(),
     )
     .await;
-
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(format!(
-            "/usr/bin/zip -9 /home/backup/zips/{} /home/backup/{}/*",
-            filename, database_name
-        ))
-        .output()
-        .expect("failed to execute process");
-    let zip_cmd = command_success(
-        &output,
-        format!("{}: Zipping the mongo dump files.", get_time_str()).as_str(),
-    );
-    if !zip_cmd {
-        send_webhook_message(&client, "Error zipping the mongo dump files.").await;
-        println!("{}: Error zipping the mongo dump files.", get_time_str());
-        panic!("Error zipping the mongo dump files.");
-    } else {
-        send_webhook_message(&client, "Mongo dump files zipped.").await;
-        println!("{}: Mongo dump files zipped.", get_time_str());
-    }
 
     /****************
      * delete the old file from the storage box
@@ -133,8 +120,18 @@ async fn main() {
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "sshpass -p '{}' ssh '-p23' {} 'ls ./test/'",
-            ssh_password, ssh_origin
+            "sshpass -p '{}' ssh '-p23' {} 'ls ./{}'",
+            ssh_password, ssh_origin, destination_dir,
+        ))
+        .output()
+        .expect("failed to execute process");
+
+    // create a dir in the storage box
+    Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "sshpass -p '{}' ssh '-p23' {} 'mkdir ./{}{}'",
+            ssh_password, ssh_origin, destination_dir, filename
         ))
         .output()
         .expect("failed to execute process");
@@ -169,8 +166,8 @@ async fn main() {
             let output = Command::new("sh")
                 .arg("-c")
                 .arg(format!(
-                    "sshpass -p '{}' ssh -p 23 {} 'rm ./test/{}'",
-                    ssh_password, ssh_origin, old_file
+                    "sshpass -p '{}' ssh -p 23 {} 'rm -rf ./{}{}'",
+                    ssh_password, ssh_origin, destination_dir, old_file
                 ))
                 .output()
                 .expect("failed to execute process");
@@ -199,14 +196,64 @@ async fn main() {
     }
 
     /****************
+     * Copy all the files and create a dir inside of the zips folder
+     ****************/
+    send_webhook_message(
+        &client,
+        "Copying all the files and create a dir inside of the zips folder.",
+    )
+    .await;
+
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "cp -r /home/backup/{} /home/backup/zips/{}",
+            database_name, filename
+        ))
+        .output()
+        .expect("failed to execute process");
+
+    let cp_cmd = command_success(
+        &output,
+        format!(
+            "{}: Copying all the files and create a dir inside of the zips folder.",
+            get_time_str()
+        )
+        .as_str(),
+    );
+
+    if !cp_cmd {
+        send_webhook_message(
+            &client,
+            "Error copying all the files and create a dir inside of the zips folder.",
+        )
+        .await;
+        println!(
+            "{}: Error copying all the files and create a dir inside of the zips folder.",
+            get_time_str()
+        );
+        panic!("Error copying all the files and create a dir inside of the zips folder.");
+    } else {
+        send_webhook_message(
+            &client,
+            "All the files copied and a dir created inside of the zips folder.",
+        )
+        .await;
+        println!(
+            "{}: All the files copied and a dir created inside of the zips folder.",
+            get_time_str()
+        );
+    }
+
+    /****************
      * Copy the zip file to the storage box
      ****************/
     send_webhook_message(&client, "Copying the zip file to the storage box.").await;
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "sshpass -p '{}' scp '-p23' /home/backup/zips/{} {}:{}",
-            ssh_password, filename, ssh_origin, destination_dir
+            "sshpass -p '{}' scp '-p23' /home/backup/zips/{}/* {}:{}{}",
+            ssh_password, filename, ssh_origin, destination_dir, filename
         ))
         .output()
         .expect("failed to execute process");
@@ -237,8 +284,11 @@ async fn main() {
      ****************/
     // delete only if zips folder has more than 3 files using rust read_dir function
 
-    send_webhook_message(&client, "Deleting the zip file from the server.").await;
-    println!("{}: Deleting the zip file from the server.", get_time_str());
+    send_webhook_message(&client, "Deleting the oldest zip file from the server.").await;
+    println!(
+        "{}: Deleting the oldest zip file from the server.",
+        get_time_str()
+    );
 
     delete_files_if_more_than_3("/home/backup/zips/")
         .await
@@ -256,4 +306,5 @@ async fn main() {
     println!("{}: Cron job finished.", get_time_str());
 
     println!("Time elapsed: {}", elapsed_time(instant));
+    std::process::exit(0);
 }
