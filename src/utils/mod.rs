@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use tokio::fs::{read, read_dir, remove_file, write};
+use tokio::fs::{read, read_dir, remove_dir_all, write};
 use tokio::time::Instant;
 use webhook::client::WebhookClient;
 
@@ -23,7 +23,6 @@ pub async fn remove_id_index(database_name: &str) -> Result<(), Box<dyn std::err
         let filename = filename.to_str().unwrap();
         let pat = format!("{}{}", dirname, filename);
         if filename.ends_with(".json.gz") {
-            println!("Removing _id_ index from file: {}", pat);
             let content = read(pat.clone()).await?;
             on_file_content_gz(&content, &pat).await?;
         }
@@ -171,30 +170,25 @@ pub fn find_oldest_file(files_list: &str) -> &str {
     filenames[oldest_index]
 }
 
-pub async fn delete_files_if_more_than_3(
-    directory: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn delete_dir_if_more_than_3(directory: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut entries = read_dir(directory).await?;
-    let mut files: Vec<_> = Vec::new();
+    let mut dirs: Vec<_> = Vec::new();
 
-    // Collect the files along with their last modified timestamp
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
-        if path.is_file() {
+        if path.is_dir() {
             let metadata = entry.metadata().await?;
             let last_modified = metadata.modified()?;
-            files.push((path, last_modified));
+            dirs.push((path, last_modified));
         }
     }
 
-    // Sort files by last modified timestamp in descending order
-    files.sort_by(|(_, t1), (_, t2)| t2.cmp(t1));
+    dirs.sort_by(|(_, t1), (_, t2)| t2.cmp(t1));
 
-    // Keep only the three latest files, delete the rest
-    for (i, (path, _)) in files.iter().enumerate() {
+    for (i, (path, _)) in dirs.iter().enumerate() {
         if i >= 3 {
-            remove_file(path).await?;
-            println!("Deleted file: {:?}", path);
+            println!("Deleting dir: {:?}", path);
+            remove_dir_all(path).await?;
         }
     }
 

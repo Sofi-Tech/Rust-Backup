@@ -4,7 +4,7 @@ use std::env;
 use std::process::Command;
 use tokio::time::Instant;
 use utils::{
-    command_success, delete_files_if_more_than_3, dir_size, elapsed_time, find_oldest_file,
+    command_success, delete_dir_if_more_than_3, dir_size, elapsed_time, find_oldest_file,
     generate_filename, get_time_str, remove_id_index, send_webhook_message,
 };
 use webhook::client::WebhookClient;
@@ -196,6 +196,19 @@ async fn main() {
     }
 
     /****************
+     * Delete the zip file from the server
+     ****************/
+    send_webhook_message(&client, "Deleting the oldest zip file from the server.").await;
+    println!(
+        "{}: Deleting the oldest zip file from the server.",
+        get_time_str()
+    );
+
+    delete_dir_if_more_than_3("/home/backup/zips/")
+        .await
+        .unwrap();
+
+    /****************
      * Copy all the files and create a dir inside of the zips folder
      ****************/
     send_webhook_message(
@@ -278,21 +291,6 @@ async fn main() {
         send_webhook_message(&client, "Zip file copied.").await;
         println!("{}: Zip file copied.", get_time_str());
     }
-
-    /****************
-     * Delete the zip file from the server
-     ****************/
-    // delete only if zips folder has more than 3 files using rust read_dir function
-
-    send_webhook_message(&client, "Deleting the oldest zip file from the server.").await;
-    println!(
-        "{}: Deleting the oldest zip file from the server.",
-        get_time_str()
-    );
-
-    delete_files_if_more_than_3("/home/backup/zips/")
-        .await
-        .unwrap();
 
     /****************
      * Cron job finished
