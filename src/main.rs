@@ -4,8 +4,8 @@ use std::env;
 use std::process::Command;
 use tokio::time::Instant;
 use utils::{
-    command_success, delete_dir_if_more_than_3, dir_size, elapsed_time, find_oldest_file,
-    generate_filename, get_time_str, remove_id_index, send_webhook_message,
+    command_success, dir_size, elapsed_time, find_oldest_file, generate_filename, get_time_str,
+    remove_id_index, send_webhook_message,
 };
 use webhook::client::WebhookClient;
 
@@ -196,31 +196,47 @@ async fn main() {
     }
 
     /****************
-     * Delete the zip file from the server
+     * Delete all the zips from the server
      ****************/
-    send_webhook_message(&client, "Deleting the oldest zip file from the server.").await;
+    send_webhook_message(&client, "Deleting the all the zips from the server.").await;
     println!(
-        "{}: Deleting the oldest zip file from the server.",
+        "{}: Deleting the all the zips from the server.",
         get_time_str()
     );
 
-    delete_dir_if_more_than_3("/home/backup/zips/")
-        .await
-        .unwrap();
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("rm -r /home/backup/zips/*")
+        .output()
+        .expect("failed to execute process");
+
+    let cp_cmd = command_success(
+        &output,
+        format!("{}: Deleted all the old zips.", get_time_str()).as_str(),
+    );
+
+    if !cp_cmd {
+        send_webhook_message(&client, "Error deleting all the old zips.").await;
+        println!("{}: Error deleting all the old zips.", get_time_str());
+        panic!("Error deleting all the old zips.");
+    } else {
+        send_webhook_message(&client, "All the are deleted").await;
+        println!("{}: All the are deleted", get_time_str());
+    }
 
     /****************
      * Copy all the files and create a dir inside of the zips folder
      ****************/
     send_webhook_message(
         &client,
-        "Copying all the files and create a dir inside of the zips folder.",
+        "Moving all the files and create a dir inside of the zips folder.",
     )
     .await;
 
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "cp -r /home/backup/{} /home/backup/zips/{}",
+            "mv -r /home/backup/{} /home/backup/zips/{}",
             database_name, filename
         ))
         .output()
@@ -229,7 +245,7 @@ async fn main() {
     let cp_cmd = command_success(
         &output,
         format!(
-            "{}: Copying all the files and create a dir inside of the zips folder.",
+            "{}: Moving all the files and create a dir inside of the zips folder.",
             get_time_str()
         )
         .as_str(),
@@ -238,22 +254,22 @@ async fn main() {
     if !cp_cmd {
         send_webhook_message(
             &client,
-            "Error copying all the files and create a dir inside of the zips folder.",
+            "Error moving all the files and create a dir inside of the zips folder.",
         )
         .await;
         println!(
-            "{}: Error copying all the files and create a dir inside of the zips folder.",
+            "{}: Error moving all the files and create a dir inside of the zips folder.",
             get_time_str()
         );
-        panic!("Error copying all the files and create a dir inside of the zips folder.");
+        panic!("Error moving all the files and create a dir inside of the zips folder.");
     } else {
         send_webhook_message(
             &client,
-            "All the files copied and a dir created inside of the zips folder.",
+            "All the files moved and a dir created inside of the zips folder.",
         )
         .await;
         println!(
-            "{}: All the files copied and a dir created inside of the zips folder.",
+            "{}: All the files moved and a dir created inside of the zips folder.",
             get_time_str()
         );
     }

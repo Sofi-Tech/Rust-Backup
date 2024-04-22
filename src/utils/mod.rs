@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use tokio::fs::{read, read_dir, remove_dir_all, write};
+use tokio::fs::{read, read_dir, write};
 use tokio::time::Instant;
 use webhook::client::WebhookClient;
 
@@ -168,29 +168,4 @@ pub fn find_oldest_file(files_list: &str) -> &str {
         .unwrap();
 
     filenames[oldest_index]
-}
-
-pub async fn delete_dir_if_more_than_3(directory: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let mut entries = read_dir(directory).await?;
-    let mut dirs: Vec<_> = Vec::new();
-
-    while let Some(entry) = entries.next_entry().await? {
-        let path = entry.path();
-        if path.is_dir() {
-            let metadata = entry.metadata().await?;
-            let last_modified = metadata.modified()?;
-            dirs.push((path, last_modified));
-        }
-    }
-
-    dirs.sort_by(|(_, t1), (_, t2)| t2.cmp(t1));
-
-    for (i, (path, _)) in dirs.iter().enumerate() {
-        if i >= 3 {
-            println!("Deleting dir: {:?}", path);
-            remove_dir_all(path).await?;
-        }
-    }
-
-    Ok(())
 }
