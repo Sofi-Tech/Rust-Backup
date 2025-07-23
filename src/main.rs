@@ -57,7 +57,11 @@ async fn main() {
         format!("{}: Removing all the old dump files.", get_time_str()).as_str(),
     );
     if !files_cmd {
-        send_webhook_message(&client, "Error removing all the old dump files.").await;
+        send_webhook_message(
+            &client,
+            "Error removing all the old dump files. <@&868430685231271966> <@&877076975188082688>",
+        )
+        .await;
         println!("{}: Error removing all the old dump files.", get_time_str());
     } else {
         send_webhook_message(&client, "All the old dump files removed.").await;
@@ -83,7 +87,11 @@ async fn main() {
     );
 
     if !dump_cmd {
-        send_webhook_message(&client, "Error dumping the mongo database.").await;
+        send_webhook_message(
+            &client,
+            "Error dumping the mongo database. <@&868430685231271966> <@&877076975188082688>",
+        )
+        .await;
         println!("{}: Error dumping the mongo database.", get_time_str());
         panic!("Error dumping the mongo database.");
     } else {
@@ -146,7 +154,7 @@ async fn main() {
     );
 
     if !ls_cmd {
-        send_webhook_message(&client, "Error finding the old file from the storage box.").await;
+        send_webhook_message(&client, "Error finding the old file from the storage box. <@&868430685231271966> <@&877076975188082688>").await;
         println!(
             "{}: Error finding the old file from the storage box.",
             get_time_str()
@@ -181,7 +189,7 @@ async fn main() {
                 .as_str(),
             );
             if !rm_cmd {
-                send_webhook_message(&client, "Error deleting the old file from the storage box.")
+                send_webhook_message(&client, "Error deleting the old file from the storage box. <@&868430685231271966> <@&877076975188082688>")
                     .await;
                 println!(
                     "{}: Error deleting the old file from the storage box.",
@@ -196,36 +204,7 @@ async fn main() {
     }
 
     /****************
-     * Delete all the zips from the server
-     ****************/
-    send_webhook_message(&client, "Deleting the all the zips from the server.").await;
-    println!(
-        "{}: Deleting the all the zips from the server.",
-        get_time_str()
-    );
-
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg("rm -r /home/backup/zips/*")
-        .output()
-        .expect("failed to execute process");
-
-    let cp_cmd = command_success(
-        &output,
-        format!("{}: Deleted all the old zips.", get_time_str()).as_str(),
-    );
-
-    if !cp_cmd {
-        send_webhook_message(&client, "Error deleting all the old zips.").await;
-        println!("{}: Error deleting all the old zips.", get_time_str());
-        panic!("Error deleting all the old zips.");
-    } else {
-        send_webhook_message(&client, "All the are deleted").await;
-        println!("{}: All the are deleted", get_time_str());
-    }
-
-    /****************
-     * Copy all the files and create a dir inside of the zips folder
+     * Move all the files and create a dir inside of the zips folder
      ****************/
     send_webhook_message(
         &client,
@@ -236,7 +215,7 @@ async fn main() {
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "mv -r /home/backup/{} /home/backup/zips/{}",
+            "mv /home/backup/{} /home/backup/zips/{}",
             database_name, filename
         ))
         .output()
@@ -254,7 +233,7 @@ async fn main() {
     if !cp_cmd {
         send_webhook_message(
             &client,
-            "Error moving all the files and create a dir inside of the zips folder.",
+            "Error moving all the files and create a dir inside of the zips folder. <@&868430685231271966> <@&877076975188082688>",
         )
         .await;
         println!(
@@ -281,7 +260,7 @@ async fn main() {
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "sshpass -p '{}' scp '-p23' /home/backup/zips/{}/* {}:{}{}",
+            "sshpass -p '{}' rsync -e 'ssh -p23' --recursive /home/backup/zips/{}/* {}:{}{}",
             ssh_password, filename, ssh_origin, destination_dir, filename
         ))
         .output()
@@ -297,7 +276,7 @@ async fn main() {
     );
 
     if !scp_cmd {
-        send_webhook_message(&client, "Error copying the zip file to the storage box.").await;
+        send_webhook_message(&client, "Error copying the zip file to the storage box. <@&868430685231271966> <@&877076975188082688>").await;
         println!(
             "{}: Error copying the zip file to the storage box.",
             get_time_str()
@@ -306,6 +285,38 @@ async fn main() {
     } else {
         send_webhook_message(&client, "Zip file copied.").await;
         println!("{}: Zip file copied.", get_time_str());
+    }
+
+    /****************
+     * Delete all the zips from the server
+     ****************/
+    send_webhook_message(&client, "Deleting the all the zips from the server.").await;
+    println!(
+        "{}: Deleting the all the zips from the server.",
+        get_time_str()
+    );
+
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("rm -r /home/backup/zips/*")
+        .output()
+        .expect("failed to execute process");
+
+    let cp_cmd = command_success(
+        &output,
+        format!("{}: Deleted all the old zips.", get_time_str()).as_str(),
+    );
+
+    if !cp_cmd {
+        send_webhook_message(
+            &client,
+            "Error deleting all the old zips. Is it empty? continuing... <@&868430685231271966> <@&877076975188082688>",
+        )
+        .await;
+        println!("{}: Error deleting all the old zips.", get_time_str());
+    } else {
+        send_webhook_message(&client, "All the are deleted").await;
+        println!("{}: All the are deleted", get_time_str());
     }
 
     /****************
