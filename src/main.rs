@@ -49,7 +49,7 @@ async fn main() {
     println!("{}: Cron job started.", get_time_str());
     let output = Command::new("sh")
         .arg("-c")
-        .arg(format!("rm -rf /home/backup/{}", database_name))
+        .arg(format!("rm -rf /home/backup/{database_name}"))
         .output()
         .expect("failed to execute process");
     let files_cmd = command_success(
@@ -73,8 +73,8 @@ async fn main() {
      ****************/
     send_webhook_message(&client, "Dumping the mongo database.").await;
     let output = Command::new("/usr/bin/mongodump")
-        .arg(format!("--uri={}", mongodb_uri))
-        .arg(format!("-d={}", database_name))
+        .arg(format!("--uri={mongodb_uri}"))
+        .arg(format!("-d={database_name}"))
         .arg("-o=/home/backup/")
         .arg("--gzip")
         .arg("--numParallelCollections=10")
@@ -112,13 +112,13 @@ async fn main() {
     /****************
      * Calculate the size of the directory
      ****************/
-    let dir_size = dir_size(format!("/home/backup/{}", database_name).as_str())
+    let dir_size = dir_size(format!("/home/backup/{database_name}").as_str())
         .await
         .unwrap();
 
     send_webhook_message(
         &client,
-        format!("Native MONGODB compressed (gz) size: {}", dir_size).as_str(),
+        format!("Native MONGODB compressed (gz) size: {dir_size}").as_str(),
     )
     .await;
 
@@ -128,8 +128,7 @@ async fn main() {
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "sshpass -p '{}' ssh '-p23' {} 'ls ./{}'",
-            ssh_password, ssh_origin, destination_dir,
+            "sshpass -p '{ssh_password}' ssh '-p23' {ssh_origin} 'ls ./{destination_dir}'",
         ))
         .output()
         .expect("failed to execute process");
@@ -138,8 +137,7 @@ async fn main() {
     Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "sshpass -p '{}' ssh '-p23' {} 'mkdir ./{}{}'",
-            ssh_password, ssh_origin, destination_dir, filename
+            "sshpass -p '{ssh_password}' ssh '-p23' {ssh_origin} 'mkdir ./{destination_dir}{filename}'"
         ))
         .output()
         .expect("failed to execute process");
@@ -164,18 +162,17 @@ async fn main() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let old_file = find_oldest_file(stdout.as_ref());
         if !old_file.is_empty() {
-            println!("Old file: {}", old_file);
+            println!("Old file: {old_file}");
             send_webhook_message(
                 &client,
-                format!("Deleting oldest file `{}`", old_file).as_str(),
+                format!("Deleting oldest file `{old_file}`").as_str(),
             )
             .await;
 
             let output = Command::new("sh")
                 .arg("-c")
                 .arg(format!(
-                    "sshpass -p '{}' ssh -p 23 {} 'rm -rf ./{}{}'",
-                    ssh_password, ssh_origin, destination_dir, old_file
+                    "sshpass -p '{ssh_password}' ssh -p 23 {ssh_origin} 'rm -rf ./{destination_dir}{old_file}'"
                 ))
                 .output()
                 .expect("failed to execute process");
@@ -215,8 +212,7 @@ async fn main() {
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "mv /home/backup/{} /home/backup/zips/{}",
-            database_name, filename
+            "mv /home/backup/{database_name} /home/backup/zips/{filename}"
         ))
         .output()
         .expect("failed to execute process");
@@ -260,8 +256,7 @@ async fn main() {
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
-            "sshpass -p '{}' rsync -e 'ssh -p23' --recursive /home/backup/zips/{}/* {}:{}{}",
-            ssh_password, filename, ssh_origin, destination_dir, filename
+            "sshpass -p '{ssh_password}' rsync -e 'ssh -p23' --recursive /home/backup/zips/{filename}/* {ssh_origin}:{destination_dir}{filename}"
         ))
         .output()
         .expect("failed to execute process");

@@ -8,6 +8,7 @@ use webhook::client::WebhookClient;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+// use std::fs::File;
 use std::io::{Read, Write};
 
 pub fn get_time_str() -> String {
@@ -16,15 +17,18 @@ pub fn get_time_str() -> String {
 }
 
 pub async fn remove_id_index(database_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let dirname = format!("/home/backup/{}/", database_name).to_string();
-    let mut reader = read_dir(dirname.clone()).await?; // Clone the dirname here
+    let dirname = format!("/home/backup/{database_name}/").to_string();
+    let mut reader = read_dir(dirname.clone()).await?;
     while let Some(entry) = reader.next_entry().await? {
         let filename = entry.file_name();
         let filename = filename.to_str().unwrap();
-        let pat = format!("{}{}", dirname, filename);
+        let pat = format!("{dirname}{filename}");
         if filename.ends_with(".json.gz") {
             let content = read(pat.clone()).await?;
-            on_file_content_gz(&content, &pat).await?;
+            if let Err(e) = on_file_content_gz(&content, &pat).await {
+                eprintln!("Error processing file {filename}: {e}");
+                return Err(e);
+            }
         }
     }
     Ok(())
@@ -45,9 +49,9 @@ pub async fn dir_size(directory: &str) -> Result<String, Box<dyn std::error::Err
     let size_in_gb = total_size as f64 / 1024.0 / 1024.0 / 1024.0;
 
     let size_formatted = if size_in_gb >= 1.0 {
-        format!("{:.2} GB", size_in_gb)
+        format!("{size_in_gb:.2} GB")
     } else {
-        format!("{:.2} MB", size_in_mb)
+        format!("{size_in_mb:.2} MB")
     };
 
     Ok(size_formatted)
@@ -62,6 +66,7 @@ struct Index {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Object {
+    #[serde(default)]
     indexes: Vec<Index>,
 }
 
@@ -75,6 +80,11 @@ pub async fn on_file_content_gz(
 
     let mut object: Object = serde_json::from_slice(&json_content)?;
     let mut new_indexes: Vec<Index> = Vec::new();
+
+    // save json to file
+    // let mut file = File::create(format!("{}.json", pat.replace(".gz", ""))).unwrap();
+    // let content = serde_json::to_vec(&object)?;
+    // file.write_all(&content)?;
 
     for index in object.indexes.iter() {
         if index.name != "_id_" {
@@ -106,7 +116,7 @@ pub fn generate_filename() -> String {
     let date_part = now.format("%Y-%m-%d").to_string();
     let time_part = now.format("%I-%M-%S_%p").to_string();
 
-    format!("{}_{}", date_part, time_part)
+    format!("{date_part}_{time_part}")
 }
 
 pub fn elapsed_time(start: Instant) -> String {
@@ -115,7 +125,7 @@ pub fn elapsed_time(start: Instant) -> String {
     let mins = secs / 60;
     let secs = secs % 60;
     let millis = elapsed.subsec_millis();
-    format!("{}m {}s {}ms", mins, secs, millis)
+    format!("{mins}m {secs}s {millis}ms")
 }
 
 pub async fn send_webhook_message(client: &WebhookClient, msg: &str) {
@@ -128,17 +138,17 @@ pub async fn send_webhook_message(client: &WebhookClient, msg: &str) {
         .await;
 
     if let Err(why) = fut {
-        eprintln!("Error sending message: {:?}", why);
+        eprintln!("Error sending message: {why:?}");
     }
 }
 
 pub fn command_success(output: &std::process::Output, msg: &str) -> bool {
     if output.status.success() {
-        println!("{}", msg);
+        println!("{msg}");
         true
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("Error executing command: {}", stderr);
+        eprintln!("Error executing command: {stderr}");
         false
     }
 }
