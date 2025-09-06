@@ -310,8 +310,8 @@ async fn main() {
         .await;
         println!("{}: Error deleting all the old zips.", get_time_str());
     } else {
-        send_webhook_message(&client, "All the are deleted").await;
-        println!("{}: All the are deleted", get_time_str());
+        send_webhook_message(&client, "All the zip files are deleted").await;
+        println!("{}: All the zip files are deleted", get_time_str());
     }
 
     /****************
