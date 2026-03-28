@@ -9,6 +9,8 @@ use utils::{
 };
 use webhook::client::WebhookClient;
 
+use crate::utils::delete_dir_if_more_than_3;
+
 #[tokio::main]
 async fn main() {
     let instant = Instant::now();
@@ -283,36 +285,17 @@ async fn main() {
     }
 
     /****************
-     * Delete all the zips from the server
+     * Delete the oldest zip file from the server
      ****************/
-    send_webhook_message(&client, "Deleting the all the zips from the server.").await;
+    send_webhook_message(&client, "Deleting the oldest zip file from the server.").await;
     println!(
-        "{}: Deleting the all the zips from the server.",
+        "{}: Deleting the oldest zip filefrom the server.",
         get_time_str()
     );
 
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg("rm -r /home/backup/zips/*")
-        .output()
-        .expect("failed to execute process");
-
-    let cp_cmd = command_success(
-        &output,
-        format!("{}: Deleted all the old zips.", get_time_str()).as_str(),
-    );
-
-    if !cp_cmd {
-        send_webhook_message(
-            &client,
-            "Error deleting all the old zips. Is it empty? continuing... <@&868430685231271966> <@&877076975188082688>",
-        )
-        .await;
-        println!("{}: Error deleting all the old zips.", get_time_str());
-    } else {
-        send_webhook_message(&client, "All the zip files are deleted").await;
-        println!("{}: All the zip files are deleted", get_time_str());
-    }
+    delete_dir_if_more_than_3("/home/backup/zips/")
+        .await
+        .unwrap();
 
     /****************
      * Cron job finished
